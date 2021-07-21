@@ -13,6 +13,18 @@ from abc import ABCMeta
 
 import numpy as np
 
+
+def matches_any(val, *possibilities) -> bool:
+    if type(val) is bool:
+        return val 
+    elif val == '*':
+        return True
+        
+    try: # is it an iterable?
+        return any(poss in val for poss in possibilities)
+    except TypeError: # oops probably not
+        return False
+
 def joint_index(varlist):
     """Given sets/variables/lists [Unit, A, B, C], reutrns
     np.array([ (⋆, a0, b0, c0), .... (⋆, a_m, b_n, c_l) ]) 
@@ -20,6 +32,8 @@ def joint_index(varlist):
     return np.rollaxis(np.stack(np.meshgrid(*[np.array(*X) for X in varlist],  indexing='ij')), 0, len(varlist)+1)
     
 def dictwo(d1, delkeys):
+    """short for "dict without..."; returns a copy of the first
+    argument without the specified keys."""
     return {k:v for k,v in d1.items() if k not in delkeys }
     
 """ https://stackoverflow.com/a/47431859
@@ -35,6 +49,15 @@ def flatten_tuples(l, start_depth=-1, end_depth=float('inf')):
                 yield tuple(rec)
         else:
             yield el
+            
+def broadcompress(array, tol = 1E-8):
+    if not isinstance(array,np.ndarray):
+        array = np.asarray(array)
+    for d in array.shape:
+        array = np.moveaxis(array, 0, -1)
+        if np.all(np.var(array,axis=0) <= tol):
+            array = array[(0,),...]
+    return array
 
 # if False:
 #     t = ('a','b','c')

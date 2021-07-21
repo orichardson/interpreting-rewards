@@ -188,9 +188,13 @@ def _definitely_a_list( somedata ):
 
 # define an event to be a value of a random variale.
 class RawJointDist(Dist):
-    def __init__(self, data, varlist):
+    def __init__(self, data, varlist=None):
+        data = np.asarray(data)
+        if varlist == None:
+            varlist = [ rv.Variable.alph("X%d"%i, n) for i,n in enumerate(data.shape) ]
         self.data = data.reshape(*(len(X) for X in varlist))
         self.varlist = varlist
+
         
         # if rv.Unit not in varlist:
         #     self.varlist = [rv.Unit] + self.varlist
