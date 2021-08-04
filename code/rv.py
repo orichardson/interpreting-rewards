@@ -19,8 +19,19 @@ class Variable(set, metaclass=utils.CopiedType):
     def __init__(self, vals):
         # super init inserted by metaclass
         self._ordered_set = list(vals)
+        self._lookup = {} # backwards lookup for indices. 
+            # generate lazily by _.idx. 
         self.structure = []
         self |= set(vals)
+        
+        
+    def idx(self, val):
+        if self._lookup == None or (val not in self._lookup):
+            i = self._ordered_set.index(val) 
+            if self._lookup != None: self._lookup[val] = i
+            return i
+        else:
+            return self._lookup[val]
         
     @staticmethod
     def product( *varis):

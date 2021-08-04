@@ -1,0 +1,15 @@
+#+TITLE: Week8
+
+* Mechanisms of reward change
+** Hebbian Habit formation
+a process by which entropy disappears from policies
+akin to sampling
+
+mechanism: Hebbian. At a state $s$, you take an action $a \sim \pi(A\mid s)$; after taking that action, you then increase your reward for selecting $a$ over other rewards.
+
+
+Question.
+
+** Inconsistency Reduction.
+
+asdf

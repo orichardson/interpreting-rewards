@@ -147,6 +147,11 @@ def Q(env, R, V, γ):
     return (env.TT*(R + γ * Vnext)).sum(axis=2,**kd) 
     # / (1 + γ)
     
+def Adv(env, R, γ, V=None):
+    if V is None:
+        V = value_iter(env, R, γ)
+    return Q(env, R, V, γ) - V
+    
 def best_policy( env, R, V, γ, temperature=0):
     # print("in 'best policy'.  \t V.shape: ", np.shape(V), "R.shape:  ", np.shape(R))
     assert V.shape == env.Vshape
@@ -158,7 +163,6 @@ def best_policy( env, R, V, γ, temperature=0):
 
 def event_joint_iter(env, init=None, iters=100):
     """
-    One issue:     
     """
     dist = np.ones(env.SAshape) / np.prod(env.SAshape) if init is None \
         else np.array(init).reshape(env.SAshape)
@@ -178,12 +182,9 @@ def visitation_iter(env, pi, init=None, iters=100):
     # iterative fixed pt computation (i.e., right eigenvector)
     for it in range(iters):
         dist = (env.TT * dist * pi).sum(axis=(0,1), **kd).transpose()
+        dist /= dist.sum() # just a precaution...
     
-    return dist
-
-    
-
-            
+    return dist            
 
     
 def fwd(env, R, γ, 
@@ -195,13 +196,13 @@ def fwd(env, R, γ,
     for j in range(alternations):
         V = value_iter(env, R, γ, val_iters, init=V, temperature=temp, trace=trace+str(j)+'v')
         π = best_policy(env, R, V, γ, temperature=temp)
-        if trace: trace(V=V, π=π)
-        if trace: trace(V0=V, π0=π)
+        # if trace: trace(V=V, π=π)
+        # if trace: trace(V0=V, π0=π)
         
         for i in range(policy_improve_iters):
             V = policy_eval(env, π, R, γ, iters=val_iters, init=V, trace=trace+str(j)+'e'+str(i))
             π = best_policy(env, R, V, γ, temperature=temp)
-            if trace: trace(V=V, π=π)
+            # if trace: trace(V=V, π=π)
 
     return π    
     
@@ -228,16 +229,51 @@ def MCE_IRL(env:Env, pi, γ, lr=1, lr_decay=0.9,
 ######################################################    
 #           UNDER CONSTRUCTION 
 ######################################################
+class Reward:
+    def __init__(self, tensor=None):
+        self.R = np.asarray(tensor)
 
-def canonicalize(R, DA=None, DS=None):
-    # R +  Ex_[ gamma R(s', A, S') - R(s, A, S') + gamma R(S,A,S') ]
-    R = np.asarray(R)
-    if DA is None: DA = np.ones()
-    DA = np.asarray(DA) / np.sum(DA, axis=(0,1))
-    if DS is None: DS = np.ones()
-    DS = np.asarray(DS) / np.sum(DS, axis=(0,1))
+
+    ######### MEASURES OF GOAL-DIRECTEDNESS ########
+    def value_variance(self, D, V):
+        """
+        Notes: 
+         * Depends heavily on this distribution.  
+        """
+        assert np.allclose(np.sum(D, axis=0),1),\
+            "0-axis sum isn't one, but %.3f" % np.sum(D, axis=0)
+        # assert D.shape[0] == R.shape[0]
+                        
+        mean = (D * V).sum()
+        return ((D*V - mean)**2).sum()
+        
+    def diff(self, env, γ):
+        # really want ∂/∂γ softmax(Q(A,S));
+        # a cheap approximation is softmax(V(S' | gamma=1))-softmax(R(A,S))
+
+        R = self.R
+        ### ??? what do we do with gamma?
+        V = value_iter(env, R, γ, temperature=0.001)
+        # V_sprime = (env.TT * (V)).sum(axis=2)
+        
+        
+        # Cosine Similarity
+        softmax_Adv = t_argmax(Adv(env,R,γ,V), temp=0.001, axis=1)
+        softmax_R = t_argmax(R+np.zeros(env.SAshape), temp=0.001, axis=1)
+        return (softmax_Adv * softmax_R).sum() / (softmax_Adv.sum() * softmax_R.sum() )
+        
+        
+        
+    def canonicalize(self, DA=None, DS=None):
+        # R +  Ex_[ gamma R(s', A, S') - R(s, A, S') + gamma R(S,A,S') ]
+        R = self.R
+        if DA is None: DA = np.ones()
+        DA = np.asarray(DA) / np.sum(DA, axis=(0,1))
+        if DS is None: DS = np.ones()
+        DS = np.asarray(DS) / np.sum(DS, axis=(0,1))
+        
+        raise NotImplementedError()
     
-    raise NotImplementedError()
     
 def logZ(R, temp):
     return temp * np.log(np.exp(R / temp).sum(axis=1))

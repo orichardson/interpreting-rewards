@@ -1,0 +1,38 @@
+#+TITLE: Week 6.
+#+startup: latexpreview
+
+
+* Agenda
+** [[*A Measure of Accessibility][A Measure of Accessibility]]
+** [[*Question: how to push-forward through the RL or IRL processes?][Question: how to push-forward through the RL or IRL processes?]]
+
+
+* Questions
+** What does the inferred reward look like for novelty reward?
+*** Hypothesis: (more or less) recover that reward. It is indeed a reward.
+But it is the universal reward.
+
+** Can the IRL process be written symmetrically?
+See tablet notes.
+
+** How do linear combinations of policies perform in MDPs?
+
+* Implementing Distributions over Rewards + Info Theory.
+** First Step: Kernels (Gaussian?)
+*** Question: how to push-forward through the RL or IRL processes?
+May not be Gaussian at the end
+
+
+* The Zen Approach
+Sometimes there's a
+
+* V
+** If there is a reset action, does novelty reward do something interesting?
+** A Measure of Accessibility :IMPORTANT:
+You want to change in response to a change in reward function,
+(or to a lesser degree, transition dynamics?)
+
+The intuition suggests that there's a natural reward that weights center points higher, since there is a lower path to get to them
+
+*** Formalization.
+A reward function should be larger if there

@@ -1,0 +1,6 @@
+#+TITLE: Week7
+
+* The RL / IRL loop
+** A desideratum:
+Get it to work just like policy iteration with balance=0, and just like IRL with balance=1
+
