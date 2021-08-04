@@ -1,6 +1,8 @@
 import numpy as np
+import pandas as pd
 from dist import RawJointDist as RJD
 from environs import Env
+from collections import defaultdict
 # from collections import frozenset as fz
 
 class TensorLibrary:
@@ -121,7 +123,7 @@ class LView:
             axis = axis[1:]
 
         values = []
-        for S,d in (self._cached if self._cached else self._consist_from_lib()):
+        for S,d in self.raw:
              v = next((atom[1] for atom in S if atom[0] == axis), None)
              if v is not None:
                  values.append( (v,(S,self._lib._decode(d))) )
@@ -139,6 +141,38 @@ class LView:
     def tensors(self):
         for s,d in self:
             yield d
+            
+    def dataframe(self, axis1, axis2, agglomerator=np.mean):
+        """
+        For instance,
+            (a=2, b=3, c, d=3)   [3,2,1]
+            (a=1, b=7, c', d=1)  [1,2,3]
+            (a=1, b=3, d=4)      [1,1,1]
+            (a=1, b=3, d=7, e)   [3,3,3]
+        
+        .dataframe("a", "b", np.mean)
+        
+        gives
+               __b = 3___b = 7 ___
+        a = 1 |   
+        a = 2 |  2       nan
+        """
+        # matrix = 
+        dictofdicts = defaultdict(defaultdict(list))
+        for S, t in self.raw:
+            sdict = _mixed2dict(S, None)
+            try:
+                dictofdicts[sdict[axis1]][sdict[axis2]].append( t )
+            except KeyError:
+                pass
+            
+        for k1 in dictofdicts:
+            for k2 in dictofdicts[k1]:
+                dictofdicts[k1][k2] = agglomerator(dictofdicts[k1][k2])
+                
+        return pd.DataFrame(dictofdicts)
+        
+        # raise NotImplementedError()
 
     @property
     def matches(self):

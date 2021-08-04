@@ -1,8 +1,9 @@
 
+# %cd code
+# %load_ext autoreload
+# %autoreload 2
 
-%cd code
-%load_ext autoreload
-%autoreload 2
+#%%
 
 import numpy as np
 import primitives as P
@@ -92,6 +93,7 @@ for S, τ in dict(environments.tensordata).items():
 #     if any(isinstance(s,frozenset) for s in S) 
 #         del environments.tensordata[S]
 #
+#%%
 #### Rewards ####
 rewards = TensorLibrary(shape=None)
 
@@ -115,14 +117,17 @@ rewards("lava").set(R_lava)
 # π_rand = E.random_policy(det=True)
 rewards("match policy").set(E.random_policy(det=True))
 
+for K in list(rewards.keys()):
+    if len(K) == 1:
+        k = next(iter(K))
+        rewards( K | {}).set()
 
 #novelty
 for K in environments("base").matches:
     rewards("novelty", env=K).set( (+environments(*K)).novelty )
 
-list(rewards.matches)
 
-
+#%%
 ####
 V = P.value_iter(E, R_dipole, 0.9)
 # P.value_iter(E, R_dipole, 0.5, iters=100)
@@ -140,7 +145,7 @@ def value_variance_metric(E, R, γ):
     D = P.visitation_iter(E,π)
     
     mean = (D * V).sum()
-    return ((D*V - mean)**2).sum()
+    return (D*(V - mean)**2).mean()
 
 def diff_metric(E, R, γ):
     V = P.value_iter(E, R, γ, temperature=0.001)
@@ -151,20 +156,36 @@ def diff_metric(E, R, γ):
     return (softmax_Adv * softmax_R).sum() / \
             np.sqrt((softmax_Adv.sum() * softmax_R.sum() ))
     # return Reward(R).diff(E, γ)
-
+    
+    
+def diff_metric2(E, R, γ, ratio):
+    V = P.value_iter(E, R, γ, temperature=0.001)
+    
+    # Cosine Similarity
+    γsmall = γ * ratio
+    γbig = 1 + (γ - 1)*ratio
+    softmax1 = P.t_argmax(P.Adv(E,R,γsmall,V), temp=0.001, axis=1)
+    softmax2 = P.t_argmax(P.Adv(E,R,γbig,V), temp=0.001, axis=1)
+    return (softmax1 * softmax2).sum() / \
+            np.sqrt((softmax1.sum() * softmax2.sum() ))
+    # return Reward(R).diff(E, γ)
+    
+    
+from functools import partial
 metrics = {
     ("valvar",) : value_variance_metric,
-    ("diff",) : diff_metric 
+    ("diff",) : diff_metric, 
+    **{("diff2", ("ratio", r)) : partial(diff_metric2, ratio=r) for r in [0.1, 0.5, 0.9]}
 }
 
 # P.t_argmax(R_dipole+np.zeros(E.SAshape), temp=0.001,axis=1)
-
+#%%
 RESULTS = TensorLibrary()
 for KE, E in environments("base"):
     print("ENVIRONMENT", KE)
     for KR, R in rewards.without("novelty"):
         print("REWARD: ", KR)
         for KM, M in metrics.items():
-            for γ in [0.99]:
-                print(M(E,R,γ))
-                # RESULTS(R=KR, E=KE, M=KM, γ=γ).set( M(E,R) )
+            for γ in [0.5, 0.9, 0.99]:
+                print(KE,KR,KM,γ,'|  \t  ', M(E,R,γ))
+                RESULTS(R=KR, E=KE, M=KM, γ=γ).set( M(E,R,γ) )
