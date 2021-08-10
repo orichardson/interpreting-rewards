@@ -5,6 +5,52 @@ from environs import Env
 from collections import defaultdict
 # from collections import frozenset as fz
 
+from itertools import chain
+from inspect import getsource
+
+def _has2(v):
+    return isinstance(v, tuple) and len(v) == 2
+def _mixed2dict( mixed_selector, default ):
+    return dict((x if _has2(x) else (x, default)) for x in mixed_selector)
+    
+
+def valid_selector(s):
+    if _has2(s):
+        return valid_selector(s[0])
+    return not (isinstance(s,str) and s[0] == '_')
+
+def fz(*tags, **attrs):
+    return frozenset(chain(tags,
+                    filter(valid_selector, attrs.items())))
+                    
+                    
+def prettify_selector( sel ):
+    return '; '.join(
+        (str(s[0])+"="+str(s[1]) if isinstance(s,tuple) and len(s)==2 else str(s)) for s in sel)
+
+def orthogonalize_selectors( selectors ): 
+    allkeys = set()
+    for sel in selectors:
+        d = _mixed2dict(sel, True)
+        allkeys.update(d)
+        # { a : 3, b: 4, tag : True }   
+        
+    # data = 
+    
+    raise NotImplementedError()
+    
+# Might make it easier to manipulate selectors. 
+class Selector:
+    def __init__(self, *tags, **attrs):
+        self._sel = fz(*tags, **attrs)
+        
+    def __repr__(self):
+        return prettify_selector(self._sel)
+        
+    def todict(self):
+        return _mixed2dict(self._sel)
+        
+
 class TensorLibrary:
     def __init__(self, shape=(-1,), decoder=None):
         # self.tensordata = dists
@@ -54,18 +100,16 @@ class TensorLibrary:
             return stored_tensor
 
     def __setitem__(self, key, val):
-        self.tensordata[frozenset(key)] = self._validate(val)
+        self.tensordata[fz(key)] = self._validate(val)
         
     def copy(self):
         tl = TensorLibrary(self.shape, self.decoder)
         tl.tensordata = dict(self.tensordata)
         return tl
-
+        
+    # def j
     #TODO: niciefy this
     # def __repr__(self):
-    #     keystr = '; '.join(
-    #         (str(s[0])+"="+str(s[1]) if isinstance(s,tuple) and len(s)==2 \
-    #         else s) for s in self.tensordata.keys())
     #     return "<DistLib with keys {%s}>"%s
     def __iter__(self):
         return iter(LView(self))
@@ -79,26 +123,14 @@ class TensorLibrary:
     # def __repr__(self):
     #     return 
 
-def _has2(v):
-    return isinstance(v, tuple) and len(v) == 2
-def _mixed2dict( mixed_selector, default ):
-    return dict((x if _has2(x) else (x, default)) for x in mixed_selector)
-
-def valid_selector(s):
-    if _has2(s):
-        return valid_selector(s[0])
-    return not (isinstance(s,str) and s[0] == '_')
 
 
-from itertools import chain
-from inspect import getsource
 class LView:
     def __init__(self, library, *selector, **kwselect):
         self._lib = library
         self._most_recent_tag = selector[-1] if len(selector) > 0 else None
         self._filters = kwselect.get('_filters', [])
-        self._sel  = frozenset(chain(selector,
-                        filter(valid_selector, kwselect.items())))
+        self._sel  = fz(*selector, **kwselect)
         self._cached = list(self._consist_from_lib())
 
 
@@ -130,6 +162,17 @@ class LView:
 
         return (((S,d) if return_tags else d) for v,(S,d) in sorted(values, reverse=reverse))
 
+    def values_for_key(self, key):
+        found = set()
+        for K in self.matches:
+            for k in K:
+                if _has2(k) and k[0] == key:
+                    if k[1] not in found:
+                        found.add(k[1])
+                        yield k[1]
+                    continue 
+        
+
     def filter(self, f):
         return LView(self._lib, *self._sel, _filters=[*self._filters, f])
         
@@ -142,7 +185,39 @@ class LView:
         for s,d in self:
             yield d
             
-    def dataframe(self, axis1, axis2, agglomerator=np.mean):
+    @property 
+    def df(self):
+        mykeys = _mixed2dict(self._sel, None).keys()
+        allkeys = set()
+        for sel in self.matches:
+            d = _mixed2dict(sel, True)
+            allkeys.update(d.keys() - mykeys)
+            
+        # Now, iterate again, putting in the data
+        names = sorted(allkeys)
+        # dims = [] if self._lib.ushape is None else ["x_%d"%i for i,d in enumerate(self._lib.ushape) if d > 1]
+        
+        idx_tuples = []
+        framedata = []
+        
+        # print('NAMES', names)
+        
+        for sel, t in self.raw:
+            d = _mixed2dict(sel, True)
+            idx = tuple(d.get(n, None) for n in names)
+            # print(idx)
+            idx_tuples.append(idx)
+            framedata.append(dict({n : d.get(n,None) for n in names}, tensor=t))
+            
+        # INDEX = pd.MultiIndex.from_tuples(idx_tuples, names=names)
+        # print(INDEX)
+        
+        # return INDEX
+        return pd.DataFrame(framedata)
+            
+            
+            
+    def dataframe_by_attrs(self, axis1, axis2, agglomerator=np.mean, prettify=True):
         """
         For instance,
             (a=2, b=3, c, d=3)   [3,2,1]
@@ -150,15 +225,15 @@ class LView:
             (a=1, b=3, d=4)      [1,1,1]
             (a=1, b=3, d=7, e)   [3,3,3]
         
-        .dataframe("a", "b", np.mean)
+        .dataframe_by_attrs("a", "b", np.mean)
         
         gives
                __b = 3___b = 7 ___
         a = 1 |   
         a = 2 |  2       nan
         """
-        # matrix = 
-        dictofdicts = defaultdict(defaultdict(list))
+        dictofdicts = defaultdict(lambda: defaultdict(list))
+   
         for S, t in self.raw:
             sdict = _mixed2dict(S, None)
             try:
@@ -169,10 +244,17 @@ class LView:
         for k1 in dictofdicts:
             for k2 in dictofdicts[k1]:
                 dictofdicts[k1][k2] = agglomerator(dictofdicts[k1][k2])
-                
-        return pd.DataFrame(dictofdicts)
+
+        df= pd.DataFrame(dictofdicts)
         
-        # raise NotImplementedError()
+        if prettify:
+            for labels,axis in zip([df.index, df.columns], [0,1]):
+                try:
+                    common = frozenset.intersection(*labels)
+                    df.rename({ L : prettify_selector(L-common) for L in labels}, axis=axis, inplace=True)
+                except TypeError:
+                    pass # No frozenset to intersect; prettify procedure does not apply.
+        return df
 
     @property
     def matches(self):
@@ -228,14 +310,11 @@ class LView:
         # return next(iter(self.μs))
 
     def __repr__(self):
-        selectorstr = '; '.join(
-            (str(s[0])+"="+str(s[1]) if isinstance(s,tuple) and len(s)==2 \
-            else str(s)) for s in self._sel)
-
+        selectorstr = prettify_selector(self._sel)
         if self._filters:
             selectorstr += " | <%d filters>" % len(self._filters)
 
-        return "LibView { %s } (%d matches)" % (selectorstr, len(self._cached))
+        return "LView { %s } (%d matches)" % (selectorstr, len(self._cached))
 
 
     def __getattr__(self, name):
@@ -278,3 +357,22 @@ class LView:
     # def __set__(self, obj, value):
     #     print("__set__ called with: ", self, obj, value)
     #     self._lib[self._sel] = value
+
+"""
+def clean_selector():
+    shared1 = None
+    shared2 = None
+
+    for S, t in self.raw:
+        sdict = _mixed2dict(S, None)
+
+        if shared1 is None: 
+            shared1 = sdict[axis1]
+        else:
+            shared1 &= sdict[axis1]
+
+        if shared2 is None: 
+            shared2 = sdict[axis2]
+        else:
+            shared2 &= sdict[axis2]
+"""

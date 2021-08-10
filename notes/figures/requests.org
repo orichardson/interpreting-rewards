@@ -1,0 +1,10 @@
+#+TITLE: Requests
+
+* Graphs
+For fixed environment:
+** Lava / Dipole /
+
+
+* Vague Questions
+** value iteration: vanilla vs recency_bias version
+Measure: difference in optimal policy.

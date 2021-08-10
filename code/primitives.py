@@ -1,4 +1,7 @@
-import numpy as np
+# import numpy as np
+import autograd.numpy as np
+from autograd import isinstance
+
 from scipy.special import logsumexp
 # import pandas as pd
 # import gym
@@ -20,7 +23,9 @@ kd = dict(keepdims=True)
 
 def t_max(arr, temp = 0, axis=None):
     if temp == 0:
-        return np.asarray(arr).max(axis=axis, **kd)
+        # @autograd fix
+        # return np.asarray(arr).max(axis=axis, **kd)
+        return (arr).max(axis=axis, **kd)
     else:
         ### Would like to do this, but numerically unstable. 
         # return temp * np.log( np.exp(arr/temp).sum(**ufunc_kwargs) )
@@ -58,11 +63,11 @@ def value_iter(env, R, γ, iters=100, init=None, temperature=0, trace=tracing.no
         # constant shift should not change softmax...
         # V = t_max( Q(env, R, V, γ), temperature, axis=1) 
 
-        if trace: trace(V= V# *  (1 - γ) / (1 - np.power(γ, it+1)))
-            )
+        if trace: trace(V= V *  (1 - γ) / (1 - np.power(γ, it+1)))
+            # )
 
         
-    return V #  *  (1 - γ) / (1 - np.power(γ, iters))
+    return V  *  (1 - γ) / (1 - np.power(γ, iters))
 
 def value_iter_recencybias(env, R, γ, iters=100, init=None, temperature=0): 
     """ 
@@ -234,19 +239,19 @@ class Reward:
         self.R = np.asarray(tensor)
 
 
-    ######### MEASURES OF GOAL-DIRECTEDNESS ########
-    def value_variance(self, D, V):
-        """
-        Notes: 
-         * Depends heavily on this distribution.  
-        """
-        assert np.allclose(np.sum(D, axis=0),1),\
-            "0-axis sum isn't one, but %.3f" % np.sum(D, axis=0)
-        # assert D.shape[0] == R.shape[0]
-                        
-        mean = (D * V).sum()
-        return ((D*V - mean)**2).sum()
-        
+    # ######### MEASURES OF GOAL-DIRECTEDNESS ########
+    # def value_variance(self, D, V):
+    #     """
+    #     Notes: 
+    #      * Depends heavily on this distribution.  
+    #     """
+    #     assert np.allclose(np.sum(D, axis=0),1),\
+    #         "0-axis sum isn't one, but %.3f" % np.sum(D, axis=0)
+    #     # assert D.shape[0] == R.shape[0]
+    # 
+    #     mean = (D * V).sum()
+    #     return ((D*V - mean)**2).sum()
+    # 
     def diff(self, env, γ):
         # really want ∂/∂γ softmax(Q(A,S));
         # a cheap approximation is softmax(V(S' | gamma=1))-softmax(R(A,S))

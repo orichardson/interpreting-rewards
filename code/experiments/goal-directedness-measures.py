@@ -1,7 +1,7 @@
 
-# %cd code
-# %load_ext autoreload
-# %autoreload 2
+%cd code
+%load_ext autoreload
+%autoreload 2
 
 #%%
 
@@ -10,8 +10,9 @@ import primitives as P
 Reward = P.Reward
 from environs import Env, GridWorld
 from utils import window
-from store import TensorLibrary
+from store import TensorLibrary, fz
 from dist import CPT
+import seaborn as sns
 
 
 #### Environments ####
@@ -117,14 +118,17 @@ rewards("lava").set(R_lava)
 # π_rand = E.random_policy(det=True)
 rewards("match policy").set(E.random_policy(det=True))
 
-for K in list(rewards.keys()):
-    if len(K) == 1:
-        k = next(iter(K))
-        rewards( K | {}).set()
+if False: # don't bother with this yet.
+    # advantage, for base rewards
+    for KR in rewards.filter(lambda kr : len(kr) == 1).matches:
+        for KE in environments("base").matches:
+            for γ in [0.5, 0.9, 0.99]:
+                rewards("advantage", env=KE-{'base'}, r0=KR, advγ=γ).set(
+                    P.Adv(+environments(*KE), +rewards(*KR), γ) )
 
-#novelty
-for K in environments("base").matches:
-    rewards("novelty", env=K).set( (+environments(*K)).novelty )
+    #novelty, for base rewards
+    for K in environments("base").matches:
+        rewards("novelty", env=K).set( (+environments(*K)).novelty )
 
 
 #%%
@@ -170,12 +174,32 @@ def diff_metric2(E, R, γ, ratio):
             np.sqrt((softmax1.sum() * softmax2.sum() ))
     # return Reward(R).diff(E, γ)
     
+def expected_softmaxdiff(E, R, γ):
+    V = P.value_iter(E, R, γ, temperature=0.001)
+    π = P.best_policy(E,R,V,γ)
+    D = P.visitation_iter(E,π)
+    
+    # Cosine Similarity
+    γsmall = γ * ratio
+    γbig = 1 + (γ - 1)*ratio
+    softmax1 = P.t_argmax(P.Adv(E,R,γsmall,V), temp=0.001, axis=1)
+    softmax2 = P.t_argmax(P.Adv(E,R,γbig,V), temp=0.001, axis=1)
+    
+    expsoftmax1 = (D*softmax1).sum(axis=0)
+    expsoftmax2 = (D*softmax2).sum(axis=0)
+    # weight by 
+    return (expsoftmax1 * expsoftmax2).sum() / \
+            np.sqrt( expsoftmax1.sum() * expsoftmax2.sum() )
+    
     
 from functools import partial
+
 metrics = {
-    ("valvar",) : value_variance_metric,
-    ("diff",) : diff_metric, 
-    **{("diff2", ("ratio", r)) : partial(diff_metric2, ratio=r) for r in [0.1, 0.5, 0.9]}
+    fz("valvar") : value_variance_metric,
+    # fz("diff") : diff_metric, 
+    fz("E_cossim") : expected_softmaxdiff,
+    **{  fz("cossim", ratio=r) : partial(diff_metric2, ratio=r) 
+            for r in [0.1, 0.5, 0.9]  }
 }
 
 # P.t_argmax(R_dipole+np.zeros(E.SAshape), temp=0.001,axis=1)
@@ -189,3 +213,66 @@ for KE, E in environments("base"):
             for γ in [0.5, 0.9, 0.99]:
                 print(KE,KR,KM,γ,'|  \t  ', M(E,R,γ))
                 RESULTS(R=KR, E=KE, M=KM, γ=γ).set( M(E,R,γ) )
+
+import pickle
+with open('tensordata.%d.pickledict'%len(RESULTS), 'wb') as f:
+    print("wrote to ", f.name)
+    pickle.dump(RESULTS.tensordata, f)
+
+
+
+# with open('tensordata.9000.pickledict', 'rb') as f:
+#     BIG_RESULTS = TensorLibrary()
+#     BIG_RESULTS.tensordata = pickle.load(f)
+
+[*RESULTS.values_for_key('M')]
+
+
+RESULTS.df.stack()
+
+RES0 = RESULTS(M=fz('diff2',ratio=0.1))
+# RES0 = RESULTS(M=('valvar',))
+
+# from IPython.core.display import display, HTML
+# display(HTML(__.to_html()))
+
+RESULTS(M=fz('diff2', ratio=0.1), γ=0.5).dataframe_by_attrs('R', 'E')
+
+sns.heatmap(RESULTS(M=fz('diff2', ratio=0.1), γ=0.5).dataframe_by_attrs('R', 'E'),
+    annot=True, fmt=".3f")
+# 
+
+# D.style.applymap(lambda v: 'background-color:rgba(255,0,0,%f);'% v)
+
+
+RESULTS(M=fz('diff2', ratio=0.1)).dataframe_by_attrs('R', 'γ')
+
+RES0.dataframe_by_attrs('γ', 'E')
+# BIG_RESULTS(M=('diff2', ('ratio', 0.1))).dataframe_by_attrs('R','E')
+
+import pandas as pd
+dod = RESULTS.dataframe_by_attrs('R', 'M')
+dod2 = { k1 : { k2 : v for k2,v in dod[k1].items()} for k1 in dod}
+dod2
+
+pd.DataFrame({ 1 : {frozenset(('a', 2, 'q')) : 0, frozenset(('b', 1)) : 1, frozenset(('a', 2, 3)): 3}})
+
+
+pd.DataFrame(dod2)
+
+import itertools
+RESULTS.dataframe_by_attrs('R', 'M')
+RESULTS.dataframe_by_attrs('M', 'R')
+
+
+RESULTS.dataframe_by_attrs("M", "R")
+
+
+from matplotlib import pyplot as plt
+RES0.dataframe_by_attrs("R", "E")
+plt.matshow(RES0.dataframe_by_attrs("R", "E"), cmap='Blues')
+
+
+from autograd import grad
+gradvv = grad(value_variance_metric, 1)
+gradvv(E, R, 0.9)
