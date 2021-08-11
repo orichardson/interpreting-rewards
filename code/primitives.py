@@ -1,8 +1,13 @@
 # import numpy as np
-import autograd.numpy as np
-from autograd import isinstance
+# import autograd.numpy as np
+# from autograd import isinstance
+import torch
+import math
+# from torch import tensor
+tensor = torch.tensor
+from torch import logsumexp 
+# from scipy.special import logsumexp
 
-from scipy.special import logsumexp
 # import pandas as pd
 # import gym
 
@@ -18,31 +23,32 @@ from environs import Env
         # if matches_any(store_iters, *names):
             # trace[kind].append(kw_data[kind])
 
-kd = dict(keepdims=True)
+# kd = dict(keepdims=True) # the numpy version
+kd = dict(keepdim=True) # the torch version
 
 
 def t_max(arr, temp = 0, axis=None):
     if temp == 0:
         # @autograd fix
         # return np.asarray(arr).max(axis=axis, **kd)
-        return (arr).max(axis=axis, **kd)
+        return (arr).max(axis=axis, **kd).values
     else:
         ### Would like to do this, but numerically unstable. 
         # return temp * np.log( np.exp(arr/temp).sum(**ufunc_kwargs) )
         ### Unfortunately scipy's logsumexp deals with temperature wrong.
-        return temp*logsumexp(np.divide(arr, temp), axis=axis, keepdims=True)
+        return temp*logsumexp(torch.div(arr, temp), axis=axis, **kd)
         
     
 def t_argmax(arr, temp=0, axis=None):
     if temp == 0:
-        if not isinstance(arr,np.ndarray):
-            arr = np.asarray(arr)
-        almost = (arr == arr.max(axis=axis, **kd)) +0.0
+        if not torch.is_tensor(arr):
+            arr = torch.tensor(arr)
+        almost = (arr == arr.max(axis=axis, **kd).values) +0.0
         return almost / almost.sum(axis=axis, **kd)
 
     else:
-        ascaled = np.divide(arr, temp)
-        almost = np.exp(ascaled - logsumexp(ascaled, axis=axis, **kd))
+        ascaled = torch.div(arr, temp)
+        almost = torch.exp(ascaled - logsumexp(ascaled, axis=axis, **kd))
         return almost / almost.sum(axis=axis, **kd)
     
     # (s,a) =>  E_{s'} - log T(s' | a,s)
@@ -54,26 +60,32 @@ def t_argmax(arr, temp=0, axis=None):
 # def _preprocess(env, R, pi)
     
 def value_iter(env, R, γ, iters=100, init=None, temperature=0, trace=tracing.none): 
-    V = np.zeros(env.Vshape) if init is None else init
+    if not torch.is_tensor(γ):
+        γ = torch.tensor([γ])
+    
+    V = torch.zeros(env.Vshape) if init is None else init
     if trace: trace(V=V)
     for it in range(iters):
         # V = max_a \Ex_{s'~p|a,s} [ r(a,s) + \gamma V(s') ]
         # Qs =  (env.TT * (R + γ * V.T)).sum(axis=2,**kd)
+        
+        # print(t_max( Q(env, R, V, γ) - V, temperature, axis=1))
+        
         V = t_max( Q(env, R, V, γ) - V, temperature, axis=1) + V
         # constant shift should not change softmax...
         # V = t_max( Q(env, R, V, γ), temperature, axis=1) 
 
-        if trace: trace(V= V *  (1 - γ) / (1 - np.power(γ, it+1)))
+        if trace: trace(V= V *  (1 - γ) / (1 - torch.pow(γ, it+1)))
             # )
 
         
-    return V  *  (1 - γ) / (1 - np.power(γ, iters))
+    return V  *  (1 - γ) / (1 - torch.pow(γ, iters))
 
 def value_iter_recencybias(env, R, γ, iters=100, init=None, temperature=0): 
     """ 
     Renormalizes every timestep instead of  
     """
-    V = np.zeros(env.Vshape) if init is None else init
+    V = torch.zeros(env.Vshape) if init is None else init
     for it in range(iters):
         # V = (env.TT * (R * (1-γ) + γ * V.T)).sum(axis=2,**kd).max(axis=1,**kd)
         Qs = (env.TT * (R * (1-γ) + γ * V.T)).sum(axis=2,**kd)
@@ -82,10 +94,14 @@ def value_iter_recencybias(env, R, γ, iters=100, init=None, temperature=0):
     return V
 
 def policy_eval(env:Env, pi, R, γ, iters=100, init=None, trace=tracing.none):
+    if not torch.is_tensor(γ):
+        γ = torch.tensor([γ])
     # pi : (S, A)
     # print("in 'policy_eval': \t  π.shape", np.shape(pi))
-    V = (np.zeros(env.Vshape) if init is None else init).reshape(env.Vshape)
-    pi_arr = np.array(pi).reshape(env.πshape)
+    V = (torch.zeros(env.Vshape) if init is None else init).reshape(env.Vshape)
+    
+    # pi_arr = torch.array(pi).reshape(env.πshape)
+    pi_arr = pi.reshape(env.πshape)
     if trace: trace(V=V)    
     
     for it in range(iters):
@@ -95,11 +111,11 @@ def policy_eval(env:Env, pi, R, γ, iters=100, init=None, trace=tracing.none):
         
         # THE USUAL VERSION
         V = (pi_arr * env.TT * (R + γ * V.T)).sum(axis=(1,2), **kd) 
-        if trace: trace(V=V# *  (1 - γ) / (1 - np.power(γ, it+1))
+        if trace: trace(V=V *  (1 - γ) / (1 - torch.pow(γ, it+1))
             )
         
-    return V
-    # return V *  (1 - γ) / (1 - np.power(γ, iters))
+    # return V
+    return V *  (1 - γ) / (1 - torch.pow(γ, iters))
     
 def policy_eval_recencybias(env:Env, pi, R, γ, iters=100, init=None):
     """
@@ -137,8 +153,9 @@ def policy_eval_recencybias(env:Env, pi, R, γ, iters=100, init=None):
         The returned value function
 
     """
-    V = np.zeros(env.Vshape) if init is None else init
-    pi_arr = np.array(pi).reshape(env.πshape)
+    V = torch.zeros(env.Vshape) if init is None else init
+    # pi_arr = np.array(pi).reshape(env.πshape)
+    pi_arr = pi.reshape(env.πshape)
     
     for it in range(iters):
         V = (pi_arr * env.TT * ((1 - γ) * R + γ * V.T)).sum(axis=(1,2))        
@@ -148,7 +165,8 @@ def policy_eval_recencybias(env:Env, pi, R, γ, iters=100, init=None):
 
 def Q(env, R, V, γ):
     # print("in Q:  \t V.shape: ", np.shape(V))
-    Vnext = np.array(V).reshape(1,1,env.nS)
+    # Vnext = tensor(V).reshape(1,1,env.nS)
+    Vnext = V.reshape(1,1,env.nS)
     return (env.TT*(R + γ * Vnext)).sum(axis=2,**kd) 
     # / (1 + γ)
     
@@ -166,27 +184,28 @@ def best_policy( env, R, V, γ, temperature=0):
     #     else np.exp( Qvals / temperature )        
     # return Qmaxima / (Qmaxima.sum(axis=1,**kd))
 
+    
+## DEPRICATED ##
 def event_joint_iter(env, init=None, iters=100):
-    """
-    """
-    dist = np.ones(env.SAshape) / np.prod(env.SAshape) if init is None \
-        else np.array(init).reshape(env.SAshape)
+    dist = torch.ones(env.SAshape) if init is None \
+        else init.reshape(env.SAshape)
+    dist /= dist.sum()
     
     # iterative fixed pt computation (i.e., right eigenvector)
     for it in range(iters):
-        dist = (env.TT * dist).sum(axis=0,**kd).transpose()
+        dist = (env.TT * dist).sum(axis=0,**kd).transpose(0,2)
     
     return dist
 
 
 def visitation_iter(env, pi, init=None, iters=100):
-    dist = np.ones(env.Sshape) / np.prod(env.Sshape) if init is None \
-        else np.array(init).reshape(env.Sshape)
-    pi = np.array(pi).reshape(env.pi_shape)
+    dist = torch.ones(env.Sshape) / env.nS if init is None \
+        else init.reshape(env.Sshape)
+    pi = pi.reshape(env.pi_shape)
     
     # iterative fixed pt computation (i.e., right eigenvector)
     for it in range(iters):
-        dist = (env.TT * dist * pi).sum(axis=(0,1), **kd).transpose()
+        dist = (env.TT * dist * pi).sum(axis=(0,1), **kd).transpose(0,2)
         dist /= dist.sum() # just a precaution...
     
     return dist            
@@ -218,8 +237,8 @@ def MCE_IRL(env:Env, pi, γ, lr=1, lr_decay=0.9,
             visit_iters = 100,
             temperature = 0,
             iters=100):
-    pi = np.array(pi).reshape(env.SA_shape)
-    R = np.zeros(env.Tshape)
+    pi = pi.reshape(env.SA_shape)
+    R = torch.zeros(env.Tshape)
     D_want = visitation_iter(env, pi, iters=visit_iters)
 
     
@@ -231,12 +250,38 @@ def MCE_IRL(env:Env, pi, γ, lr=1, lr_decay=0.9,
         
     return R
     
+def torch_IRL(env, pi, γ):
+    pass
+
+
+def regularized_IRL(env:Env, pi, γ,
+            regularizer,
+            lr=1, lr_decay=0.9, 
+            policy_improve_iters=0,
+            value_iters = 100,
+            visit_iters = 100,
+            temperature = 0,
+            iters=100):
+    pi = pi.reshape(env.SA_shape)
+    R = torch.zeros(env.Tshape)
+    D_want = visitation_iter(env, pi, iters=visit_iters)
+
+    
+    for it in range(iters):
+        pi_R = fwd(env, R, γ, policy_improve_iters, value_iters, temp=temperature)
+        D_R = visitation_iter(env, pi_R, iters=visit_iters)
+        R += lr * ( D_want * pi - D_R * pi_R)
+        lr *= lr_decay
+        
+    return R
+
+    
 ######################################################    
 #           UNDER CONSTRUCTION 
 ######################################################
 class Reward:
-    def __init__(self, tensor=None):
-        self.R = np.asarray(tensor)
+    def __init__(self, arr=None):
+        self.R = tensor(arr)
 
 
     # ######### MEASURES OF GOAL-DIRECTEDNESS ########
@@ -264,7 +309,7 @@ class Reward:
         
         # Cosine Similarity
         softmax_Adv = t_argmax(Adv(env,R,γ,V), temp=0.001, axis=1)
-        softmax_R = t_argmax(R+np.zeros(env.SAshape), temp=0.001, axis=1)
+        softmax_R = t_argmax(R+torch.zeros(env.SAshape), temp=0.001, axis=1)
         return (softmax_Adv * softmax_R).sum() / (softmax_Adv.sum() * softmax_R.sum() )
         
         
@@ -272,18 +317,18 @@ class Reward:
     def canonicalize(self, DA=None, DS=None):
         # R +  Ex_[ gamma R(s', A, S') - R(s, A, S') + gamma R(S,A,S') ]
         R = self.R
-        if DA is None: DA = np.ones()
-        DA = np.asarray(DA) / np.sum(DA, axis=(0,1))
-        if DS is None: DS = np.ones()
-        DS = np.asarray(DS) / np.sum(DS, axis=(0,1))
+        if DA is None: DA = torch.ones()
+        DA = tensor(DA) / torch.sum(DA, axis=(0,1))
+        if DS is None: DS = torch.ones()
+        DS = tensor(DS) / torch.sum(DS, axis=(0,1))
         
         raise NotImplementedError()
     
     
-def logZ(R, temp):
-    return temp * np.log(np.exp(R / temp).sum(axis=1))
-    
+# def logZ(R, temp):
+#     return temp * np.log(np.exp(R / temp).sum(axis=1))
 def policyReward(pi,  temp=0):
+    import numpy as np
     with np.errstate(divide='ignore'):
         infocost = np.log(pi)
         

@@ -13,7 +13,8 @@ R = np.zeros(E.Sshape)
 R[1] = 1
 
 jacobian(P.fwd, 2)(E,R, 0.9)
-
+jacobian(P.fwd, 1)(E,R, 0.9, temp=0.1)
+P.fwd(E,R, 0.9, temp=0.1)
 
 jacobian(P.value_iter, 1)(E,R, 0.9)
 _.shape

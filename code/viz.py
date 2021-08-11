@@ -11,12 +11,14 @@ from tracing import TraceStore
 
 cmaps = [get_cmap(cmn) for cmn in ["Blues", "Reds", "Greens", "Greys", "Oranges", "Purples"]]
 
+from utils import nparray_of
+
 def pca_view(*unnamedtraces,
         ax=None, arrows=True, transform=None,
         **kwtraces):
     
     nametrace = [("%d"%i, t) for i,t in enumerate(unnamedtraces)] + [(k,t) for k,t in kwtraces.items()]
-    alltraces = np.vstack([np.array(trace).reshape(len(trace),-1) for n,trace in nametrace])
+    alltraces = np.vstack([nparray_of(trace).reshape(len(trace),-1) for n,trace in nametrace])
 
     if transform == None:
         pca = PCA(n_components=2)
@@ -32,7 +34,7 @@ def pca_view(*unnamedtraces,
     
     artistname = []
     for i,(n,t) in enumerate(nametrace):
-        ddata = np.array(t).reshape(len(t),-1)
+        ddata = nparray_of(t).reshape(len(t),-1)
         X,Y = transform(ddata)[:,:].T
         U,V = np.diff(X), np.diff(Y) 
         # norm = np.sqrt(U**2 + V**2)

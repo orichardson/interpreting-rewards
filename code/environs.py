@@ -1,9 +1,11 @@
 
 from rv import Variable as Var
 from dist import CPT
-import numpy as np
+# import numpy as np
+import torch
+import numpy
 
-from utils import matches_any
+from utils import matches_any, nparray_of
 
             
 kd = dict(keepdims=True)
@@ -13,6 +15,7 @@ class Env:
         self.S = States
         self.A = Acts
         self.T = Transitions # (A, S) -> ΔS
+        self._T = torch.tensor(Transitions.to_numpy()).reshape(self.Tshape) # tensor
         
     def __getattr__(self, key):
         if key.endswith("shape"):
@@ -25,26 +28,26 @@ class Env:
                 return (self.nS, 1, 1)
             
     def random_policy(self, det=False):
-        raw = np.random.exponential(size=self.pi_shape)
+        raw = numpy.random.exponential(size=self.pi_shape)
         if det:
             ###___ PROBLEM with the below: gives all maxima, not just first.___
             # return 0.0 + (raw == raw.max(axis=1, **kd))
             ###__ SO INSTEAD, do this.
-            res = np.zeros(raw.shape)
-            for (s,_),v in np.ndenumerate(raw.argmax(axis=1)):
+            res = numpy.zeros(raw.shape)
+            for (s,_),v in numpy.ndenumerate(raw.argmax(axis=1)):
                 res[s,v,0] = 1
-            return res
+            return torch.tensor(res)
                 
         else:
-            return raw / raw.sum(axis=1, **kd)
+            return torch.tensor(raw / raw.sum(axis=1, **kd))
     
     @property
     def novelty(self):
         # return env.TT
         # (s,a,s') =>  - log T(s' | a,s)
         TT = self.TT
-        with np.errstate(divide="ignore"):
-            return np.where(TT==0, 0, -np.log( np.where(TT==0, 1, TT))*TT)
+        with numpy.errstate(divide="ignore"):
+            return torch.where(TT==0, 0., -torch.log( torch.where(TT==0, 1., TT))*TT)
         
     
 
@@ -56,8 +59,13 @@ class Env:
 
     @property
     def TT(self):
-        return self.T.to_numpy().reshape(self.Tshape)
-
+        # for now, just validate nothing is wrong
+        assert numpy.allclose(self._T, 
+            self.T.to_numpy().reshape(self.Tshape)), "Transition Dynamics changed..."
+        
+                    
+        return self._T
+        
 
     @staticmethod
     def generate(A,S, spec="random"):
@@ -68,19 +76,19 @@ class Env:
         
         cptshape = (len(S)*len(A), len(S))
         if isinstance(spec, str):
-            if spec.startswith("random"): tensor = np.random.exponential(size=cptshape)
-            elif spec.startswith("unif"): tensor = np.ones(cptshape)
+            if spec.startswith("random"): array = numpy.random.exponential(size=cptshape)
+            elif spec.startswith("unif"): array = numpy.ones(cptshape)
             
             if "det" in spec:
-                tensor = (tensor == tensor.max(axis=-1, **kd))+0.0
+                array = (array == array.max(axis=-1, **kd))+0.0
                 
         else:
             try:
-                tensor = spec(*cptshape)
+                array = spec(*cptshape)
             except TypeError:
                 raise ValueError("spec `%s` neither string nor callable" % repr(spec))
         
-        return Env(vS, vA, CPT.make_stoch(vS & vA, vS2, tensor ) )
+        return Env(vS, vA, CPT.make_stoch(vS & vA, vS2, array ) )
         
     
     @staticmethod
@@ -107,12 +115,12 @@ class GridWorld(Env):
     # def __init__():
     #     pass
 
-    def draw(self, axis=None, **kwargs):
+    def draw(self, ax=None, **kwargs):
         
         from matplotlib import cm, pyplot as plt
         from matplotlib.colors import ListedColormap, LinearSegmentedColormap
         
-        if axis == None:
+        if ax == None:
             # fig, ax = plt.subplots(figsize=(self.W,self.H))
             fig, ax = plt.subplots()
         ax.axis('off')
@@ -126,15 +134,15 @@ class GridWorld(Env):
                 
             # just a state array
             if matches_any(descr, "states", "grid"):                
-                M = array.reshape(self.W, self.H).T
+                M = nparray_of(array).reshape(self.W, self.H).T
                 norm = cm.colors.Normalize(vmax=abs(M).max()+0.001, vmin=-abs(M).max()-0.001)
                 
                 ###_ SET UP COLORMAP _###
-                colors = np.vstack([
-                        cm.get_cmap("Reds_r",128)(np.linspace(0,1,128)),
-                        cm.get_cmap("Greens",128)(np.linspace(0,1,128))
+                colors = numpy.vstack([
+                        cm.get_cmap("Reds_r",128)(numpy.linspace(0,1,128)),
+                        cm.get_cmap("Greens",128)(numpy.linspace(0,1,128))
                     ])
-                colors[:,3] = np.hstack((np.linspace(1,0,128), np.linspace(0,1,128)))                
+                colors[:,3] = numpy.hstack((numpy.linspace(1,0,128), numpy.linspace(0,1,128)))                
                 red_green_cmap = ListedColormap(colors, name="RedGreen")
                 ###__###############__###
                 
@@ -142,24 +150,24 @@ class GridWorld(Env):
                 
             # draw quiver
             if matches_any(descr, "policy", "π", "flow"):
-                pi = array.reshape(-1,4)
+                pi = nparray_of(array).reshape(-1,4)
 
-                X,Y = np.meshgrid(range(self.W), range(self.H))
+                X,Y = numpy.meshgrid(range(self.W), range(self.H))
                 X,Y = X.T, Y.T
 
-                dx = np.array([0,-1,0,1]).reshape(1, 4)
-                dy = np.array([-1,0,1,0]).reshape(1, 4)
+                dx = numpy.array([0,-1,0,1]).reshape(1, 4)
+                dy = numpy.array([-1,0,1,0]).reshape(1, 4)
                 
                 U = (pi * dx).sum(axis=1)
                 V = -(pi * dy).sum(axis=1)
-                with np.errstate(divide='ignore'):
-                    # entropy = (- pi * np.where(pi==0, 0, np.log(pi))).sum(axis=1)
+                with numpy.errstate(divide='ignore'):
+                    # entropy = (- pi * numpy.where(pi==0, 0, numpy.log(pi))).sum(axis=1)
                     pass
                     
                     
                 ###_ SET UP COLORMAP _###
-                colors = cm.get_cmap("Blues",256)(np.linspace(0,1,256))
-                colors[:,3] = np.linspace(0,1,256)                
+                colors = cm.get_cmap("Blues",256)(numpy.linspace(0,1,256))
+                colors[:,3] = numpy.linspace(0,1,256)                
                 arrow_cmap = ListedColormap(colors, name="arrow_cmap")
                 ###__###############__###
 
@@ -190,11 +198,11 @@ class GridWorld(Env):
         # dim = [0,0,1,1]
         
         def tgt(x,y,aidx):
-            newx = np.clip(x + dx[aidx], 0, width-1)
-            newy = np.clip(y + dy[aidx], 0, height-1)
+            newx = numpy.clip(x + dx[aidx], 0, width-1)
+            newy = numpy.clip(y + dy[aidx], 0, height-1)
             return newy + newx * height # this is weird, but due to ordering
                 
-        T = np.zeros((len(S), len(A), len(S)))
+        T = numpy.zeros((len(S), len(A), len(S)))
         for sidx,(x,y) in enumerate(S.ordered):
             x,y = [int(c[1:]) for c in (x,y)]
             for a in range(len(A)):

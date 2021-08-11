@@ -13,7 +13,16 @@ from abc import ABCMeta
 from itertools import islice
 
 import numpy as np
+import torch
 
+def nparray_of( maybe_tensor ):
+    if torch.is_tensor(maybe_tensor):
+        return maybe_tensor.detach().numpy()
+    elif len(maybe_tensor) and torch.is_tensor(maybe_tensor[0]):
+        return np.array([t.detach().numpy() for t in maybe_tensor])
+    else:
+        # print("it's a ", type(maybe_tensor),':', maybe_tensor)
+        return np.array(maybe_tensor)
 
 def window(seq, n=2):
     "Returns a sliding window (of width n) over data from the iterable"
