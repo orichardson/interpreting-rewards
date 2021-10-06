@@ -110,6 +110,20 @@ class Env:
         vA = Var.alph("A", nA)
         return Env(vS, vA, CPT.make_stoch(vS & vA, vS2, T.reshape(nS*nA, nS2)))
 
+
+
+
+# _trioff = {
+#     'up' : [ numpy.array([0,0]), numpy.array([1,0]) ],
+#     'down' : [ numpy.array([0,1]), numpy.array([1,1]) ],
+#     'left' : [ numpy.array([0,0]), numpy.array([0,1]) ],
+#     'right' : [ numpy.array([1,0]), numpy.array([1,1]) ]
+# }
+# def _tricalc(i,j, k):
+#     mid = numpy.array([i,j]) + 0.5
+#     return [mid] + 
+# 
+
 class GridWorld(Env):
     
     # def __init__():
@@ -120,10 +134,35 @@ class GridWorld(Env):
         from matplotlib import cm, pyplot as plt
         from matplotlib.colors import ListedColormap, LinearSegmentedColormap
         
+        ###_ SET UP COLORMAP _###
+        colors = numpy.vstack([
+                cm.get_cmap("Reds_r",128)(numpy.linspace(0,1,128)),
+                cm.get_cmap("Greens",128)(numpy.linspace(0,1,128))
+            ])
+        colors[:,3] = numpy.hstack((numpy.linspace(1,0,128), numpy.linspace(0,1,128)))                
+        red_green_cmap = ListedColormap(colors, name="RedGreen")
+        ###__###############__###
+        ###_ SET UP COLORMAP _###
+        colors = numpy.vstack([
+                cm.get_cmap("Oranges_r",128)(numpy.linspace(0,1,128)),
+                cm.get_cmap("Blues",128)(numpy.linspace(0,1,128))
+            ])
+        colors[:,3] = numpy.hstack((numpy.linspace(1,0,128), numpy.linspace(0,1,128)))
+        orange_blue_cmap = ListedColormap(colors, name="OrangeBlue")
+        ###__###############__###
+        ###_ SET UP COLORMAP _###
+        colors = cm.get_cmap("Blues",256)(numpy.linspace(0,1,256))
+        colors[:,3] = numpy.linspace(0,1,256)                
+        arrow_cmap = ListedColormap(colors, name="arrow_cmap")
+        ###__###############__###
+        
         if ax == None:
-            # fig, ax = plt.subplots(figsize=(self.W,self.H))
-            fig, ax = plt.subplots()
+            fig, ax = plt.subplots(figsize=(self.W,self.H))
+            # fig, ax = plt.subplots()
         ax.axis('off')
+        
+        
+        ax.matshow(numpy.zeros((self.W, self.H)).T, alpha=0)
         # N = self.W * self.H
         
         for descr,array in kwargs.items():
@@ -137,16 +176,38 @@ class GridWorld(Env):
                 M = nparray_of(array).reshape(self.W, self.H).T
                 norm = cm.colors.Normalize(vmax=abs(M).max()+0.001, vmin=-abs(M).max()-0.001)
                 
-                ###_ SET UP COLORMAP _###
-                colors = numpy.vstack([
-                        cm.get_cmap("Reds_r",128)(numpy.linspace(0,1,128)),
-                        cm.get_cmap("Greens",128)(numpy.linspace(0,1,128))
-                    ])
-                colors[:,3] = numpy.hstack((numpy.linspace(1,0,128), numpy.linspace(0,1,128)))                
-                red_green_cmap = ListedColormap(colors, name="RedGreen")
-                ###__###############__###
-                
                 ax.matshow(M,cmap=red_green_cmap, norm=norm)
+                
+            #draw triangulation
+            if matches_any(descr, "trigrid", "tris", "savals"):
+                M = nparray_of(array).reshape(self.W, self.H, self.nA)
+                norm = cm.colors.Normalize(vmax=abs(M).max()+0.001, vmin=-abs(M).max()-0.001)
+                
+                
+                X1,Y1 = numpy.meshgrid(range(self.W+1), range(self.H+1))
+                Xm, Ym = numpy.meshgrid(range(self.W), range(self.H))
+                X = numpy.concatenate((X1.T.flatten()-0.5, Xm.T.flatten()))
+                Y = numpy.concatenate((Y1.T.flatten()-0.5, Ym.T.flatten()))
+                N = numpy.size(X1)
+                
+                triangles = []
+                COL = self.H+1
+                for (x,y) in zip(Xm.T.flatten(), Ym.T.flatten()): 
+                    i = numpy.ravel_multi_index((x,y), (self.W,self.H))
+                    ul = y + COL*x
+                    triangles.append( [N+i,  ul+COL, ul] ) # top
+                    triangles.append( [N+i,  ul, ul+1] ) # left
+                    triangles.append( [N+i,  ul+1, ul+COL+1] ) # bottom
+                    triangles.append( [N+i,  ul+COL+1, ul+COL] ) # right
+                
+
+
+                ax.tripcolor(X,Y,triangles, facecolors=M.flatten(),
+                    # cmap='Blues', 
+                    cmap=orange_blue_cmap,
+                    norm=norm,
+                    # edgecolors='k', 
+                    alpha=0.8)
                 
             # draw quiver
             if matches_any(descr, "policy", "π", "flow"):
@@ -163,13 +224,6 @@ class GridWorld(Env):
                 with numpy.errstate(divide='ignore'):
                     # entropy = (- pi * numpy.where(pi==0, 0, numpy.log(pi))).sum(axis=1)
                     pass
-                    
-                    
-                ###_ SET UP COLORMAP _###
-                colors = cm.get_cmap("Blues",256)(numpy.linspace(0,1,256))
-                colors[:,3] = numpy.linspace(0,1,256)                
-                arrow_cmap = ListedColormap(colors, name="arrow_cmap")
-                ###__###############__###
 
                 for a in range(4):
                     field = pi[:,a,...].reshape(self.W, self.H)
@@ -181,7 +235,7 @@ class GridWorld(Env):
                               #-entropy, cmap='binary',
                               pivot='mid', units='x', 
                               scale=1.1,headlength=5,headwidth=4,width=0.09,headaxislength=3.5,
-                              edgecolor=(1,1,1,0.5), linewidth=0.5, alpha=0.5)
+                              edgecolor=(1,1,1,0.5), linewidth=0.5, alpha=0.5, zorder=4)
 
         
         # else:
