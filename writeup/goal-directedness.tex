@@ -6,39 +6,46 @@
 \usepackage{multirow}
 \usepackage{booktabs}
 
+\newcommand\commentout[1]{}
 \begin{document}  
-    \section{Introduction}
     
-    \begin{center}
-        \renewcommand\arraystretch{1.2}
-        \begin{tabular}{r|cc}
-            & \multicolumn{2}{c}{A} \\\hline
-            \multirow{ 2}{*}{\rotatebox{90}{A}}&
-                %1.
-                % Specify behavior directly (the trace of a program) 
-                Behavior ($\tau : S^* \to A^*$)
-                & 
-                %2.
-                % Specify behavior in a higher level programming language
-                Policy ($\pi: S \to A$)
-                \\&
-                %3.
-                % Specify a metric by which you judge behavior, and train systems to maximize this metric.
-                Desirability ($S^* \times A^* \to U$)
-                &
-                % 4. 
-                Reward function ($A \times S \to U$)
-        \end{tabular}
-    \end{center}
+    \commentout{
+        \begin{table}
+            \centering
+            \renewcommand\arraystretch{1.2}
+            \begin{tabular}{r|cc}
+                & \multicolumn{2}{c}{A} \\\hline
+                \multirow{ 2}{*}{\rotatebox{90}{A}}&
+                    %1.
+                    % Specify behavior directly (the trace of a program) 
+                    Behavior ($\tau : S^* \to A^*$)
+                    & 
+                    %2.
+                    % Specify behavior in a higher level programming language
+                    Policy ($\pi: S \to A$)
+                    \\&
+                    %3.
+                    % Specify a metric by which you judge behavior, and train systems to maximize this metric.
+                    Desirability ($S^* \times A^* \to U$)
+                    &
+                    % 4. 
+                    Reward function ($A \times S \to U$)
+            \end{tabular}
+        \end{table}}
     
-    \begin{enumerate}[itemsep=0pt]
-        \item 
-        \item
-        \item 
-        \item 
-    \end{enumerate}
     % One way of building a program is to specify its behavior directly. 
     % A more compact way of doing this is to generate code, which unfolds into behavior.
+    
+    \section{Review of Markov Decision Processes}
+    
+
+    Let's consider an agent that, at each timestep $t$, observes the state $s^{(t)} \in S$ of the system, and takes an action $a^{(t)} \in A$. 
+    Suppose further that the system dynamics are controlled by a fixed \emph{transition} map $\tau: S \times A \to \Delta S$ such that, for all $t$, the next state $s^{(t+1)}$ is drawn independently from the distribution $\tau(s^{(t)}, a^{(t)})$.
+    % How should one go about specifying the behavior of an agent in this system?  
+    The agent's behavior is the sequence of actions $(s^{(t)}, a^{(t)})_{t = 1, 2, \ldots}$. 
+    
+    This motivates the standard definition of a Markov Decision Process (MDP) $(S, A, \gamma, \tau, R)$. 
+        
     
     
     \section{Notions of Goal-Directedness}

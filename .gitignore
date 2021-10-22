@@ -1,1 +1,7 @@
 *.pyc
+writeup/*.auc
+writeup/*.synctex.gz
+writeup/*.log
+writeup/*.fdb-latexmk
+writeup/*.fls
+writeup/*.pdf
