@@ -6,7 +6,8 @@
 \usepackage{multirow}
 \usepackage{booktabs}
 
-\DeclareMathOperator{\argmax}{\arg\max}
+\DeclareMathOperator*{\argmax}{\arg\max}
+\DeclareMathOperator*{\Ex}{\mathbb E}
 \newcommand\commentout[1]{}
 
 \begin{document}  
@@ -57,17 +58,19 @@
         \sum_{t} \gamma^t R(s^{(t)}, a^{(t)}, s^{(t+1)})
     $.
         
-    This motivates the standard definition of a Markov Decision Process (MDP) $(S, A, \gamma, \tau, R)$, and the notion of ``solving'' an MDP, which is to say, finding an optimal policy
+    This motivates the standard definition of a Markov Decision Process (MDP) $(S, A, \gamma, \tau, R)$, and the notion of ``solving'' an MDP, which is to say, finding an optimal policy $\pi^* : S \to \Delta A$ which maximizes the total discounted reward.    
+    % \[ 
+    %     \argmax_{\pi : S \to \Delta A}
+    %         \sum_{t=1}^{\infty}\Ex_{a \sim \pi} R()
+    % \]
     
-    \[ 
-        \argmax_{\pi : S \to \Delta A}
-    \]
+    T
         
     
     
     \section{Notions of Goal-Directedness}
     
-    Suppose you have a 
+    Suppose you have a distribution
     
     
     
