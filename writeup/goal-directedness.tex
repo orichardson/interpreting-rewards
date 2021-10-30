@@ -1,6 +1,8 @@
 \documentclass{article}
 
 \usepackage[margin=0.9in]{geometry}
+\usepackage{parskip}
+
 \usepackage{mathtools,amssymb}
 \usepackage{enumitem}
 \usepackage{multirow}
@@ -13,7 +15,7 @@
 \DeclareMathOperator*{\Ex}{\mathbb E}
 \newcommand\commentout[1]{}
 
-\begin{document}  
+\begin{document}
     \commentout{
         \begin{table}
             \centering
@@ -22,9 +24,9 @@
                 & \multicolumn{2}{c}{A} \\\hline
                 \multirow{ 2}{*}{\rotatebox{90}{A}}&
                     %1.
-                    % Specify behavior directly (the trace of a program) 
+                    % Specify behavior directly (the trace of a program)
                     Behavior ($\tau : S^* \to A^*$)
-                    & 
+                    &
                     %2.
                     % Specify behavior in a higher level programming language
                     Policy ($\pi: S \to A$)
@@ -33,12 +35,12 @@
                     % Specify a metric by which you judge behavior, and train systems to maximize this metric.
                     Desirability ($S^* \times A^* \to U$)
                     &
-                    % 4. 
+                    % 4.
                     Reward function ($A \times S \to U$)
             \end{tabular}
         \end{table}}
-    
-    % One way of building a program is to specify its behavior directly. 
+
+    % One way of building a program is to specify its behavior directly.
     % A more compact way of doing this is to generate code, which unfolds into behavior.
     
     % \section{Review of Markov Decision Processes}
@@ -107,9 +109,33 @@
         
     
     \subsection{More }
+    Given a fixed policy $\pi$ and reward function $R$, we can define a \emph{Value} function $V_{\pi, R} : S \to \mathbb R$ its expected future reward.
+    It satisfies the recursive relation
+    \begin{align*}
+        V_{\pi,R}(s) = \Ex_{ \substack{ a \sim \pi(A|s) \\ s' \sim \tau(S|a,s) }}
+            \Big[ R(s,a,s') + \gamma V_{\pi, R}(s') \Big]
+    \end{align*}
+    Embedded inside is a standard notion of an action-dependent value, or $Q$-value,
+    \[
+        Q_{\pi,R}(s,a) = \Ex_{ s' \sim \tau(S|a,s) } \Big[ R(s,a,s') + \gamma V_{\pi, R}(s') \Big]
+    \]
+    so that $V_{\pi,R}(s) = \Ex_{a \sim \pi(A|s)} Q_{\pi,R}(a,s)$. 
+    % that does not have the dependence on .
+    % It satisfies the recursive relation
+    % \begin{align*}
+    %     V_{\pi,R}(s) = \Ex_{ \substack{ a \sim \pi(A|s) \\ s' \sim \tau(S|a,s) }}
+    %         \Big[ R(s,a,s') + \gamma V_{\pi, R}(s') \Big]
+    %     Q(a,s) = \Ex_{} \Ex_{s' \sim \tau(S|a,s)} \Big[ R(s,a,s') + \gamma V^*_R(s') \Big]
+    % \end{align*}
+
+    There's also a notion of value
+    \[
+        V^*_R(s)  = \max_{a \in A}
+    \]
+
+
     Advantage $\mathcal A$
     
-    $Q$-values.
     
     \section{Notions of Goal-Directedness}
 
@@ -124,4 +150,6 @@
     
     
     
+
+    \section{Experiments}
 \end{document}
