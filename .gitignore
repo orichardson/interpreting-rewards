@@ -1,4 +1,5 @@
 *.pyc
+*.pptm
 writeup/*.aux
 writeup/*.auc
 writeup/*.synctex.gz
@@ -6,3 +7,4 @@ writeup/*.log
 writeup/*.fdb_latexmk
 writeup/*.fls
 writeup/*.pdf
+writeup/*.out
